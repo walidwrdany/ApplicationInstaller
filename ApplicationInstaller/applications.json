@@ -1,6 +1,6 @@
 ﻿{
   "FilesPath": "G:\\.configrations\\.apps\\files",
-  "Applications": [
+  "Packages": [
     {
       "Name": "7-Zip",
       "Arguments": "/S",

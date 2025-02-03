@@ -13,10 +13,10 @@ namespace ApplicationInstaller
     public class Configuration
     {
         public string FilesPath { get; set; }
-        public List<Application> Applications { get; set; }
+        public List<Package> Packages { get; set; }
     }
 
-    public class Application
+    public class Package
     {
         public string Name { get; set; }
         public string Arguments { get; set; }
@@ -25,7 +25,7 @@ namespace ApplicationInstaller
 
     public class Program
     {
-        private static List<Application> _applications = new List<Application>();
+        private static List<Package> _packages = new List<Package>();
         private static readonly string JsonPath = Path.Combine(Directory.GetCurrentDirectory(), "applications.json");
 
         public static Configuration Configuration { get; private set; }
@@ -47,7 +47,7 @@ namespace ApplicationInstaller
                     return;
                 }
 
-                Console.Title = "Application Installer";
+                Console.Title = "Package Installer";
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.BackgroundColor = ConsoleColor.Black;
 
@@ -100,9 +100,9 @@ namespace ApplicationInstaller
             var defaultApps = new Configuration
             {
                 FilesPath = "test",
-                Applications = new List<Application>
+                Packages = new List<Package>
                 {
-                    new Application
+                    new Package
                     {
                         Name = "7-Zip",
                         Arguments = "/S",
@@ -121,7 +121,7 @@ namespace ApplicationInstaller
             {
                 var json = File.ReadAllText(JsonPath);
                 Configuration = JsonConvert.DeserializeObject<Configuration>(json);
-                _applications = Configuration.Applications;
+                _packages = Configuration.Packages;
             }
             catch
             {
@@ -147,11 +147,11 @@ namespace ApplicationInstaller
         private static void ShowMenu()
         {
             Console.Clear();
-            WriteHeader("Application Installer Menu");
+            WriteHeader("Package Installer Menu");
 
-            for (var i = 0; i < _applications.Count; i++)
+            for (var i = 0; i < _packages.Count; i++)
             {
-                var app = _applications[i];
+                var app = _packages[i];
                 Console.Write($" {i + 1}. {app.Name} ");
 
                 if (IsApplicationInstalled(app.Name))
@@ -164,7 +164,7 @@ namespace ApplicationInstaller
                 }
             }
 
-            Console.WriteLine(" A. Install All Applications");
+            Console.WriteLine(" A. Install All Packages");
             Console.WriteLine(" Q. Quit");
             WriteSeparator();
             Console.WriteLine("Please select an option (e.g., 1, 1,2,3, 1-3, A, Q)");
@@ -210,20 +210,20 @@ namespace ApplicationInstaller
         #region Installation Logic
         private static void InstallSingle(int appNumber)
         {
-            if (appNumber < 1 || appNumber > _applications.Count)
+            if (appNumber < 1 || appNumber > _packages.Count)
             {
                 WriteMessage(" * Invalid selection. Skipping...", ErrorColor);
                 return;
             }
 
-            var app = _applications[appNumber - 1];
+            var app = _packages[appNumber - 1];
             ProcessApplicationInstall(app);
         }
 
         private static void InstallMultiple(string input)
         {
             var numbers = ParseInputNumbers(input);
-            foreach (var num in numbers.Where(n => n > 0 && n <= _applications.Count))
+            foreach (var num in numbers.Where(n => n > 0 && n <= _packages.Count))
             {
                 InstallSingle(num);
             }
@@ -231,14 +231,14 @@ namespace ApplicationInstaller
 
         private static void InstallAllApplications()
         {
-            foreach (var app in _applications)
+            foreach (var app in _packages)
             {
                 ProcessApplicationInstall(app);
             }
             Pause();
         }
 
-        private static void ProcessApplicationInstall(Application app)
+        private static void ProcessApplicationInstall(Package app)
         {
             var installerPath = Path.Combine(Configuration.FilesPath, app.FileName);
 
@@ -257,7 +257,7 @@ namespace ApplicationInstaller
             ExecuteInstaller(app, installerPath);
         }
 
-        private static void ExecuteInstaller(Application app, string installerPath)
+        private static void ExecuteInstaller(Package app, string installerPath)
         {
             WriteMessage("", ConsoleColor.White);
             WriteMessage($" + Installing {app.Name}...", ConsoleColor.Cyan);
@@ -350,8 +350,8 @@ namespace ApplicationInstaller
 
         private static bool ConfirmReinstall(string appName)
         {
+            WriteMessage("\n\n", ConsoleColor.Black);
             WriteMessage($" * {appName} is already installed.", WarningColor);
-            Console.WriteLine(" Do you want to reinstall it? (Y/N) [Default: N, timeout in 10 seconds]");
 
             var response = GetTimedResponse(TimeSpan.FromSeconds(10));
             switch (response)
@@ -359,10 +359,10 @@ namespace ApplicationInstaller
                 case 'Y':
                     return true;
                 case 'N':
-                    WriteMessage(" Cancel by user", WarningColor);
+                    WriteMessage(" * Cancel by user", ErrorColor);
                     return false;
                 default:
-                    WriteMessage(" No input received. Skipping.", WarningColor);
+                    WriteMessage(" * No input received. Skipping.", WarningColor);
                     return false;
             }
         }
@@ -381,7 +381,7 @@ namespace ApplicationInstaller
                         break;
                 }
                 var remaining = (int)(timeout - (DateTime.Now - start)).TotalSeconds;
-                Console.Write($"\rTimeout in {remaining} seconds... ");
+                Console.Write($"\r  Do you want to reinstall it? (Y/N) [Default: N] Timeout in {remaining} seconds... ");
                 Thread.Sleep(250);
             }
 
@@ -409,7 +409,7 @@ namespace ApplicationInstaller
                 .Where(n => n > 0);
         }
 
-        private static void HandleExitCode(Application app, int exitCode)
+        private static void HandleExitCode(Package app, int exitCode)
         {
             if (exitCode == 0)
             {
