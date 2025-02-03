@@ -10,6 +10,12 @@ using Newtonsoft.Json;
 
 namespace ApplicationInstaller
 {
+    public class Configuration
+    {
+        public string FilesPath { get; set; }
+        public List<Application> Applications { get; set; }
+    }
+
     public class Application
     {
         public string Name { get; set; }
@@ -20,51 +26,107 @@ namespace ApplicationInstaller
     public class Program
     {
         private static List<Application> _applications = new List<Application>();
-        private static readonly string FilesPath = Path.Combine(Directory.GetCurrentDirectory(), "files");
         private static readonly string JsonPath = Path.Combine(Directory.GetCurrentDirectory(), "applications.json");
-        
+
+        public static Configuration Configuration { get; private set; }
+
         private const ConsoleColor HighlightColor = ConsoleColor.Cyan;
         private const ConsoleColor SuccessColor = ConsoleColor.Green;
         private const ConsoleColor WarningColor = ConsoleColor.Yellow;
         private const ConsoleColor ErrorColor = ConsoleColor.Red;
 
+
+
         public static void Main(string[] args)
-        {
-            if (!IsAdministrator())
-            {
-                RestartAsAdmin();
-                return;
-            }
-
-            Console.Title = "Application Installer";
-            Console.SetWindowSize(120, 35);
-
-            if (!LoadApplications()) return;
-
-            MainLoop();
-        }
-
-        #region Core Functionality
-        private static bool LoadApplications()
         {
             try
             {
-                if (!File.Exists(JsonPath))
+                if (!IsAdministrator())
                 {
-                    WriteMessage($" * ERROR: JSON file '{JsonPath}' not found. Exiting...", ErrorColor);
-                    Pause();
-                    return false;
+                    RestartAsAdmin();
+                    return;
                 }
 
+                Console.Title = "Application Installer";
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.BackgroundColor = ConsoleColor.Black;
+
+                // Ensure configuration exists and is valid
+                EnsureConfiguration();
+
+                MainLoop();
+            }
+            catch (Exception)
+            {
+                WriteMessage(" A critical error occurred. Check logs for details.", ErrorColor);
+                Pause();
+            }
+        }
+
+        #region Core Functionality
+        private static void EnsureConfiguration()
+        {
+            try
+            {
+                if (!File.Exists(JsonPath) || !IsConfigurationValid())
+                    CreateDefaultConfiguration();
+
+                LoadApplications();
+            }
+            catch (Exception)
+            {
+                WriteMessage(" * ERROR: Failed to load or create configuration. Exiting...", ErrorColor);
+                Pause();
+                Environment.Exit(1);
+            }
+        }
+
+        private static bool IsConfigurationValid()
+        {
+            try
+            {
                 var json = File.ReadAllText(JsonPath);
-                _applications = JsonConvert.DeserializeObject<List<Application>>(json);
+                JsonConvert.DeserializeObject<Configuration>(json);
                 return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static void CreateDefaultConfiguration()
+        {
+            var defaultApps = new Configuration
+            {
+                FilesPath = "test",
+                Applications = new List<Application>
+                {
+                    new Application
+                    {
+                        Name = "7-Zip",
+                        Arguments = "/S",
+                        FileName = "7z2408-x64.exe"
+                    }
+                }
+            };
+
+            var json = JsonConvert.SerializeObject(defaultApps, Formatting.Indented);
+            File.WriteAllText(JsonPath, json);
+        }
+
+        private static void LoadApplications()
+        {
+            try
+            {
+                var json = File.ReadAllText(JsonPath);
+                Configuration = JsonConvert.DeserializeObject<Configuration>(json);
+                _applications = Configuration.Applications;
             }
             catch
             {
                 WriteMessage($" * ERROR: Failed to parse JSON file '{JsonPath}'. Exiting...", ErrorColor);
                 Pause();
-                return false;
             }
         }
 
@@ -178,7 +240,7 @@ namespace ApplicationInstaller
 
         private static void ProcessApplicationInstall(Application app)
         {
-            var installerPath = Path.Combine(FilesPath, app.FileName);
+            var installerPath = Path.Combine(Configuration.FilesPath, app.FileName);
 
             if (!File.Exists(installerPath))
             {
@@ -197,13 +259,15 @@ namespace ApplicationInstaller
 
         private static void ExecuteInstaller(Application app, string installerPath)
         {
+            WriteMessage("", ConsoleColor.White);
             WriteMessage($" + Installing {app.Name}...", ConsoleColor.Cyan);
+            WriteMessage($" + Run {installerPath}", ConsoleColor.White);
 
             try
             {
                 var processInfo = new ProcessStartInfo
                 {
-                    WorkingDirectory = FilesPath,
+                    WorkingDirectory = Configuration.FilesPath,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     CreateNoWindow = true
@@ -290,10 +354,17 @@ namespace ApplicationInstaller
             Console.WriteLine(" Do you want to reinstall it? (Y/N) [Default: N, timeout in 10 seconds]");
 
             var response = GetTimedResponse(TimeSpan.FromSeconds(10));
-            if (response == 'Y') return true;
-
-            WriteMessage(" No input received. Skipping.", WarningColor);
-            return false;
+            switch (response)
+            {
+                case 'Y':
+                    return true;
+                case 'N':
+                    WriteMessage(" Cancel by user", WarningColor);
+                    return false;
+                default:
+                    WriteMessage(" No input received. Skipping.", WarningColor);
+                    return false;
+            }
         }
 
         private static char GetTimedResponse(TimeSpan timeout)
