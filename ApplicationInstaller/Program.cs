@@ -43,7 +43,7 @@ namespace ApplicationInstaller
             {
                 if (!IsAdministrator())
                 {
-                    RestartAsAdmin();
+                    RestartAsAdmin(args);
                     return;
                 }
 
@@ -54,28 +54,66 @@ namespace ApplicationInstaller
                 // Ensure configuration exists and is valid
                 EnsureConfiguration();
 
+                // Handle command-line arguments
+                if (args.Length > 0)
+                {
+                    HandleCommandLineArguments(args);
+                    return;
+                }
+
                 MainLoop();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                WriteMessage(" A critical error occurred. Check logs for details.", ErrorColor);
+                WriteMessage($" A critical error occurred. {ex.Message}\n{ex}", ErrorColor);
                 Pause();
             }
         }
 
         #region Core Functionality
+        private static void HandleCommandLineArguments(string[] args)
+        {
+            // Early exit for help
+            if (args.Contains("-h"))
+            {
+                DisplayHelp();
+                return;
+            }
+
+            // Track valid arguments
+            var validArgs = new HashSet<string> { "-a", "-y" };
+            var invalidArgs = args.Where(arg => !validArgs.Contains(arg)).ToList();
+
+            // Handle invalid arguments
+            if (invalidArgs.Any())
+            {
+                WriteMessage($" * ERROR: Invalid arguments: {string.Join(", ", invalidArgs)}", ErrorColor);
+                DisplayHelp();
+                return;
+            }
+
+            // Process valid arguments
+            var installAll = args.Contains("-a");
+            var confirmReinstall = args.Contains("-y");
+
+            if (installAll)
+                InstallAllApplications(confirmReinstall);
+            else
+                WriteMessage(" * No action specified. Use '-a' to install all packages.", WarningColor);
+        }
+
         private static void EnsureConfiguration()
         {
             try
             {
-                if (!File.Exists(JsonPath) || !IsConfigurationValid())
+                if (!IsConfigurationValid())
                     CreateDefaultConfiguration();
 
                 LoadApplications();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                WriteMessage(" * ERROR: Failed to load or create configuration. Exiting...", ErrorColor);
+                WriteMessage($" * ERROR: Failed to load or create configuration. {ex.Message}. Exiting...", ErrorColor);
                 Pause();
                 Environment.Exit(1);
             }
@@ -83,14 +121,21 @@ namespace ApplicationInstaller
 
         private static bool IsConfigurationValid()
         {
+            if (!File.Exists(JsonPath))
+            {
+                WriteMessage($" * ERROR: Configuration file '{JsonPath}' not found.", ErrorColor);
+                return false;
+            }
+
             try
             {
                 var json = File.ReadAllText(JsonPath);
                 JsonConvert.DeserializeObject<Configuration>(json);
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                WriteMessage($" * WARNING: Configuration validation failed. {ex.Message}", WarningColor);
                 return false;
             }
         }
@@ -111,8 +156,17 @@ namespace ApplicationInstaller
                 }
             };
 
-            var json = JsonConvert.SerializeObject(defaultApps, Formatting.Indented);
-            File.WriteAllText(JsonPath, json);
+            try
+            {
+                var json = JsonConvert.SerializeObject(defaultApps, Formatting.Indented);
+                File.WriteAllText(JsonPath, json);
+                WriteMessage(" * Created default configuration file.", SuccessColor);
+            }
+            catch (Exception ex)
+            {
+                WriteMessage($" * ERROR: Failed to create default configuration. {ex.Message}", ErrorColor);
+                throw; // Rethrow to ensure EnsureConfiguration handles the exception
+            }
         }
 
         private static void LoadApplications()
@@ -121,12 +175,16 @@ namespace ApplicationInstaller
             {
                 var json = File.ReadAllText(JsonPath);
                 Configuration = JsonConvert.DeserializeObject<Configuration>(json);
-                _packages = Configuration.Packages;
+                _packages = Configuration?.Packages ?? new List<Package>();
+
+                if (_packages.Count == 0)
+                    WriteMessage(" * WARNING: No packages loaded from configuration.", WarningColor);
             }
-            catch
+            catch (Exception ex)
             {
-                WriteMessage($" * ERROR: Failed to parse JSON file '{JsonPath}'. Exiting...", ErrorColor);
+                WriteMessage($" * ERROR: Failed to parse JSON file '{JsonPath}'. {ex.Message}. Exiting...", ErrorColor);
                 Pause();
+                Environment.Exit(1);
             }
         }
 
@@ -144,6 +202,17 @@ namespace ApplicationInstaller
         #endregion
 
         #region Menu System
+        private static void DisplayHelp()
+        {
+            WriteHeader("Command-Line Options");
+            Console.WriteLine(" -a: Install all packages.");
+            Console.WriteLine(" -y: Confirm reinstall if package exists.");
+            Console.WriteLine(" -h: Display this help message.");
+            WriteSeparator();
+
+            Pause();
+        }
+
         private static void ShowMenu()
         {
             Console.Clear();
@@ -155,13 +224,9 @@ namespace ApplicationInstaller
                 Console.Write($" {i + 1}. {app.Name} ");
 
                 if (IsApplicationInstalled(app.Name))
-                {
                     WriteMessage("[Installed]", SuccessColor);
-                }
                 else
-                {
                     Console.WriteLine();
-                }
             }
 
             Console.WriteLine(" A. Install All Packages");
@@ -180,7 +245,7 @@ namespace ApplicationInstaller
                     ExitApplication();
                     break;
                 case "A":
-                    InstallAllApplications();
+                    InstallAllApplications(false);
                     break;
                 default:
                     ProcessComplexChoice(choice);
@@ -191,17 +256,11 @@ namespace ApplicationInstaller
         private static void ProcessComplexChoice(string choice)
         {
             if (choice.Contains(",") || choice.Contains("-"))
-            {
                 InstallMultiple(choice);
-            }
             else if (int.TryParse(choice, out var num))
-            {
                 InstallSingle(num);
-            }
             else
-            {
                 WriteMessage("Invalid option. Please try again.", ErrorColor);
-            }
 
             Pause();
         }
@@ -217,28 +276,24 @@ namespace ApplicationInstaller
             }
 
             var app = _packages[appNumber - 1];
-            ProcessApplicationInstall(app);
+            ProcessApplicationInstall(app, false);
         }
 
         private static void InstallMultiple(string input)
         {
             var numbers = ParseInputNumbers(input);
             foreach (var num in numbers.Where(n => n > 0 && n <= _packages.Count))
-            {
                 InstallSingle(num);
-            }
         }
 
-        private static void InstallAllApplications()
+        private static void InstallAllApplications(bool confirmReinstall)
         {
             foreach (var app in _packages)
-            {
-                ProcessApplicationInstall(app);
-            }
+                ProcessApplicationInstall(app, confirmReinstall);
             Pause();
         }
 
-        private static void ProcessApplicationInstall(Package app)
+        private static void ProcessApplicationInstall(Package app, bool confirmReinstall)
         {
             var installerPath = Path.Combine(Configuration.FilesPath, app.FileName);
 
@@ -248,7 +303,7 @@ namespace ApplicationInstaller
                 return;
             }
 
-            if (IsApplicationInstalled(app.Name) && !ConfirmReinstall(app.Name))
+            if (IsApplicationInstalled(app.Name) && !confirmReinstall && !ConfirmReinstall(app.Name))
             {
                 WriteMessage($" * Skipping installation of {app.Name}.", WarningColor);
                 return;
@@ -403,7 +458,7 @@ namespace ApplicationInstaller
             {
                 return Enumerable.Range(start, end - start + 1);
             }
-            
+
             return input.Split(',')
                 .Select(s => int.TryParse(s.Trim(), out var num) ? num : -1)
                 .Where(n => n > 0);
@@ -463,7 +518,7 @@ namespace ApplicationInstaller
             return principal.IsInRole(WindowsBuiltInRole.Administrator);
         }
 
-        private static void RestartAsAdmin()
+        private static void RestartAsAdmin(string[] args)
         {
             var processModule = Process.GetCurrentProcess().MainModule;
             if (processModule == null) return;
@@ -471,7 +526,8 @@ namespace ApplicationInstaller
             var startInfo = new ProcessStartInfo(exeName)
             {
                 Verb = "runas",
-                UseShellExecute = true
+                UseShellExecute = true,
+                Arguments = string.Join(" ", args)
             };
 
             try
