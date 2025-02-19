@@ -74,7 +74,9 @@
     <None Include="applications.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Include="build.bat" />
+    <None Include="build.bat">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Include="install-applications-002.bat" />
     <None Include="install-applications.bat" />
     <None Include="packages.config" />

@@ -109,7 +109,7 @@ public class Program
                 {
                     if (!IsValidInput(options.Install))
                     {
-                        Console.WriteLine("Invalid input '{0}'. Please try again.", options.Install);
+                        WriteMessage($"Invalid input '{options.Install}'. Please try again.", ErrorColor);
                         return;
                     }
 
@@ -259,7 +259,7 @@ public class Program
     #region Installation Logic
     private static void InstallSingle(int appNumber, bool confirmReinstall)
     {
-        if (appNumber < 1 || appNumber > _packages.Count)
+        if (appNumber <= 0 || appNumber > _packages.Count)
         {
             WriteMessage(" * Invalid selection. Skipping...", ErrorColor);
             return;
