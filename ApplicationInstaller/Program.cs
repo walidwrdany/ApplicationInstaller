@@ -140,7 +140,13 @@ public class Program
         {
             var json = File.ReadAllText(JsonPath);
             Configuration = JsonConvert.DeserializeObject<Configuration>(json);
-            _packages = Configuration?.Packages ?? [];
+
+            Configuration.Packages.ForEach(package =>
+            {
+                package.FullPath = Path.Combine(Configuration.FilesPath, package.FileName);
+            });
+
+            _packages = Configuration.Packages;
 
             if (_packages.Count == 0)
                 WriteMessage(" * WARNING: No packages loaded from configuration.", WarningColor);
@@ -190,7 +196,7 @@ public class Program
 
             var applicationInfo = IsApplicationInstalled(app.Name);
             if (applicationInfo.IsInstalled)
-                WriteMessage($"[Installed]", SuccessColor);
+                WriteMessage("[Installed]", SuccessColor);
             else
                 Console.WriteLine();
         }
@@ -277,7 +283,7 @@ public class Program
     {
         WriteMessage("", ConsoleColor.White);
         WriteMessage($" + Installing {app.Name}...", ConsoleColor.Cyan);
-        WriteMessage($" + Run {installerPath}", ConsoleColor.White);
+        WriteMessage($" + Run => {installerPath} {app.Arguments}", ConsoleColor.White);
 
         try
         {
@@ -313,7 +319,7 @@ public class Program
     #endregion
 
     #region Helper Methods
-    private static ApplicationInfo IsApplicationInstalled(string appName)
+    private static InstallationInfo IsApplicationInstalled(string appName)
     {
         var registryPaths = new[]
         {
@@ -336,16 +342,16 @@ public class Program
         {
             using (var key = baseKey.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"))
             {
-                if (key == null) return new ApplicationInfo();
+                if (key == null) return new InstallationInfo();
                 var appInfo = CheckSubKeys(key, appName);
                 if (appInfo != null) return appInfo;
             }
         }
 
-        return new ApplicationInfo();
+        return new InstallationInfo();
     }
 
-    private static ApplicationInfo CheckSubKeys(RegistryKey key, string appName)
+    private static InstallationInfo CheckSubKeys(RegistryKey key, string appName)
     {
         foreach (var subKeyName in key.GetSubKeyNames())
         {
@@ -353,7 +359,7 @@ public class Program
             var displayName = subKey?.GetValue("DisplayName")?.ToString();
             if (displayName != null && displayName.IndexOf(appName, StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                return new ApplicationInfo
+                return new InstallationInfo
                 {
                     IsInstalled = true,
                     DisplayName = displayName,
@@ -550,9 +556,10 @@ public class Package
     public string Name { get; set; }
     public string Arguments { get; set; }
     public string FileName { get; set; }
+    public string FullPath { get; set; }
 }
 
-public class ApplicationInfo
+public class InstallationInfo
 {
     public bool IsInstalled { get; set; }
     public string DisplayName { get; set; }
