@@ -4,12 +4,12 @@
     {
       "Name": "7-Zip",
       "Arguments": "/S",
-      "FileName": "7z2408-x64.exe"
+      "FileName": "7z2409-x64.exe"
     },
     {
       "Name": "Notepad++",
       "Arguments": "/S",
-      "FileName": "npp.8.7.2.Installer.x64.exe"
+      "FileName": "npp.8.7.7.Installer.x64.exe"
     },
     {
       "Name": "VLC",
@@ -19,7 +19,7 @@
     {
       "Name": "WinRAR",
       "Arguments": "/S",
-      "FileName": "winrar-x64-701.exe"
+      "FileName": "winrar-x64-710.exe"
     },
     {
       "Name": "Microsoft Visual C++",
@@ -28,13 +28,23 @@
     },
     {
       "Name": "Firefox",
-      "Arguments": "/quiet /norestart",
-      "FileName": "Firefox-Setup-133.0.3.msi"
+      "Arguments": "/S",
+      "FileName": "Firefox Setup 136.0.exe"
+    },
+    {
+      "Name": "Waterfox",
+      "Arguments": "/S",
+      "FileName": "Waterfox Setup 6.5.5.exe"
     },
     {
       "Name": "Brave",
       "Arguments": "",
       "FileName": "BraveBrowserStandaloneSilentSetup.exe"
+    },
+    {
+      "Name": "Brave Nightly",
+      "Arguments": "",
+      "FileName": "BraveBrowserStandaloneSilentNightlySetup.exe"
     },
     {
       "Name": "Google Chrome",
@@ -43,7 +53,7 @@
     },
     {
       "Name": "Internet Download Manager",
-      "Arguments": "idman642build26.exe",
+      "Arguments": "idman642build27.exe",
       "FileName": "InstallIDM-v2.exe"
     },
     {
@@ -54,32 +64,32 @@
     {
       "Name": "Node.js",
       "Arguments": "/quiet /norestart",
-      "FileName": "node-v23.0.0-x64.msi"
+      "FileName": "node-v23.9.0-x64.msi"
     },
     {
       "Name": "PowerShell 7-x64",
       "Arguments": "/quiet /norestart",
-      "FileName": "PowerShell-7.4.6-win-x64.msi"
+      "FileName": "PowerShell-7.5.0-win-x64.msi"
     },
     {
       "Name": "Python",
       "Arguments": "/quiet InstallAllUsers=1 PrependPath=1",
-      "FileName": "python-3.13.0-amd64.exe"
+      "FileName": "python-3.13.2-amd64.exe"
     },
     {
-      "Name": "Java 8 Update 431 (64-bit)",
+      "Name": "Java 8 Update 441",
       "Arguments": "/s",
-      "FileName": "jre-8u431-windows-x64.exe"
+      "FileName": "jre-8u441-windows-x64.exe"
     },
     {
       "Name": "Git",
       "Arguments": "/verysilent",
-      "FileName": "Git-2.47.1-64-bit.exe"
+      "FileName": "Git-2.48.1-64-bit.exe"
     },
     {
       "Name": "Visual Studio Code",
-      "Arguments": "/silent /mergetasks=!runcode,addcontextmenufiles,addcontextmenufolders,associatewithfiles,addtopath",
-      "FileName": "VSCodeSetup-x64-1.96.2.exe"
+      "Arguments": "/verysilent /suppressmsgboxes /mergetasks=desktopicon,quicklaunchicon,addcontextmenufiles,addcontextmenufolders,associatewithfiles,addtopath",
+      "FileName": "VSCodeSetup-x64-1.97.2.exe"
     },
     {
       "Name": "VMware Workstation",
@@ -88,13 +98,13 @@
     },
     {
       "Name": "TeraCopy",
-      "Arguments": "/verysilent",
+      "Arguments": "/exenoui /exenoupdates /qn /norestart",
       "FileName": "teracopy.exe"
     },
     {
       "Name": "StartAllBack",
       "Arguments": "/silent /allusers",
-      "FileName": "StartAllBack_3.8.13_setup.exe"
+      "FileName": "StartAllBack_3.9.5_setup.exe"
     },
     {
       "Name": "DirectX",

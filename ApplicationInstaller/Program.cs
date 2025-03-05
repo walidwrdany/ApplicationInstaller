@@ -12,34 +12,6 @@ using Newtonsoft.Json;
 
 namespace ApplicationInstaller;
 
-public class Configuration
-{
-    public string FilesPath { get; set; }
-    public List<Package> Packages { get; set; }
-}
-
-public class Package
-{
-    public string Name { get; set; }
-    public string Arguments { get; set; }
-    public string FileName { get; set; }
-}
-
-public class Options
-{
-    [Option('i', "install", Required = false, HelpText = "Specify package(s) to install (e.g., All, 1,2,3,4, or 1-5).")]
-    public string Install { get; set; }
-
-    [Option('y', "yes", Required = false, HelpText = "Confirm reinstall (only valid with -i).")]
-    public bool ConfirmReinstall { get; set; }
-
-    [Option('l', "list", Required = false, HelpText = "List available packages.")]
-    public bool ListPackages { get; set; }
-
-    [Option("init", Required = false, HelpText = "Initialize configuration file.")]
-    public bool Init { get; set; }
-}
-
 public class Program
 {
     private static List<Package> _packages = [];
@@ -56,12 +28,6 @@ public class Program
 
     public static void Main(string[] args)
     {
-
-        Console.Title = "Package Installer";
-        Console.ForegroundColor = ConsoleColor.White;
-        Console.BackgroundColor = ConsoleColor.Black;
-
-
         try
         {
             if (!IsAdministrator())
@@ -69,6 +35,10 @@ public class Program
                 RestartAsAdmin(args);
                 return;
             }
+
+            Console.Title = "Administrator: Package Installer";
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.BackgroundColor = ConsoleColor.Black;
 
             if (args.Length > 0)
             {
@@ -218,8 +188,9 @@ public class Program
             var app = _packages[i];
             Console.Write($" {i + 1}. {app.Name} ");
 
-            if (IsApplicationInstalled(app.Name))
-                WriteMessage("[Installed]", SuccessColor);
+            var applicationInfo = IsApplicationInstalled(app.Name);
+            if (applicationInfo.IsInstalled)
+                WriteMessage($"[Installed]", SuccessColor);
             else
                 Console.WriteLine();
         }
@@ -293,7 +264,7 @@ public class Program
             return;
         }
 
-        if (IsApplicationInstalled(app.Name) && !confirmReinstall && !ConfirmReinstall(app.Name))
+        if (IsApplicationInstalled(app.Name).IsInstalled && !confirmReinstall && !ConfirmReinstall(app.Name))
         {
             WriteMessage($" * Skipping installation of {app.Name}.", WarningColor);
             return;
@@ -342,13 +313,12 @@ public class Program
     #endregion
 
     #region Helper Methods
-    private static bool IsApplicationInstalled(string appName)
+    private static ApplicationInfo IsApplicationInstalled(string appName)
     {
         var registryPaths = new[]
         {
             @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-            @"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
-            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
+            @"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
         };
 
         using (var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
@@ -357,7 +327,8 @@ public class Program
             {
                 using var key = baseKey.OpenSubKey(path);
                 if (key == null) continue;
-                if (CheckSubKeys(key, appName)) return true;
+                var appInfo = CheckSubKeys(key, appName);
+                if (appInfo != null) return appInfo;
             }
         }
 
@@ -365,27 +336,46 @@ public class Program
         {
             using (var key = baseKey.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"))
             {
-                if (key != null && CheckSubKeys(key, appName)) return true;
+                if (key == null) return new ApplicationInfo();
+                var appInfo = CheckSubKeys(key, appName);
+                if (appInfo != null) return appInfo;
             }
         }
 
-        return false;
+        return new ApplicationInfo();
     }
 
-    private static bool CheckSubKeys(RegistryKey key, string appName)
+    private static ApplicationInfo CheckSubKeys(RegistryKey key, string appName)
     {
         foreach (var subKeyName in key.GetSubKeyNames())
         {
             using var subKey = key.OpenSubKey(subKeyName);
             var displayName = subKey?.GetValue("DisplayName")?.ToString();
-            if (displayName != null &&
-                displayName.IndexOf(appName, StringComparison.OrdinalIgnoreCase) >= 0)
+            if (displayName != null && displayName.IndexOf(appName, StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                return true;
+                return new ApplicationInfo
+                {
+                    IsInstalled = true,
+                    DisplayName = displayName,
+                    Version = subKey.GetValue("DisplayVersion")?.ToString(),
+                    Publisher = subKey.GetValue("Publisher")?.ToString(),
+                    InstalledOn = GetInstallDate(subKey)
+                };
             }
         }
-        return false;
+        return null;
     }
+
+    private static DateTime? GetInstallDate(RegistryKey subKey)
+    {
+        var installDate = subKey.GetValue("InstallDate")?.ToString();
+        if (!string.IsNullOrEmpty(installDate) && DateTime.TryParseExact(installDate, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out var date))
+        {
+            return date;
+        }
+        return null;
+    }
+
 
     private static bool ConfirmReinstall(string appName)
     {
@@ -420,7 +410,7 @@ public class Program
                     break;
             }
             var remaining = (int)(timeout - (DateTime.Now - start)).TotalSeconds;
-            Console.Write($"\r  Do you want to reinstall it? (Y/N) [Default: N] Timeout in {remaining} seconds... ");
+            Console.Write($"\r   Do you want to reinstall it? (Y/N) [Default: N] Timeout in {remaining} seconds... ");
             Thread.Sleep(250);
         }
 
@@ -548,3 +538,41 @@ public class Program
     }
     #endregion
 }
+
+public class Configuration
+{
+    public string FilesPath { get; set; }
+    public List<Package> Packages { get; set; }
+}
+
+public class Package
+{
+    public string Name { get; set; }
+    public string Arguments { get; set; }
+    public string FileName { get; set; }
+}
+
+public class ApplicationInfo
+{
+    public bool IsInstalled { get; set; }
+    public string DisplayName { get; set; }
+    public string Version { get; set; }
+    public string Publisher { get; set; }
+    public DateTime? InstalledOn { get; set; }
+}
+
+public class Options
+{
+    [Option('i', "install", Required = false, HelpText = "Specify package(s) to install (e.g., All, 1,2,3,4, or 1-5).")]
+    public string Install { get; set; }
+
+    [Option('y', "yes", Required = false, HelpText = "Confirm reinstall (only valid with -i).")]
+    public bool ConfirmReinstall { get; set; }
+
+    [Option('l', "list", Required = false, HelpText = "List available packages.")]
+    public bool ListPackages { get; set; }
+
+    [Option("init", Required = false, HelpText = "Initialize configuration file.")]
+    public bool Init { get; set; }
+}
+
