@@ -141,10 +141,7 @@ public class Program
             var json = File.ReadAllText(JsonPath);
             Configuration = JsonConvert.DeserializeObject<Configuration>(json);
 
-            Configuration.Packages.ForEach(package =>
-            {
-                package.FullPath = Path.Combine(Configuration.FilesPath, package.FileName);
-            });
+            Configuration.Packages.ForEach(package => package.FullPath = Path.Combine(Configuration.FilesPath, package.FileName));
 
             _packages = Configuration.Packages;
 
